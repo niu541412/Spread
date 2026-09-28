@@ -15,18 +15,7 @@
 #define BRANCH_SHRINK		0.95
 #define BRANCH_OPACITY		0.4
 #define COLOR_SPEED			0.03
-#define NEW_TREE_FREQ		2.0
 
-
-CGFloat RandomFloat()
-{
-	return (random() / (CGFloat)RAND_MAX);
-}
-
-NSUInteger RandomUInteger(NSUInteger min, NSUInteger max)
-{
-	return min + (random() % ((max - min) + 1));
-}
 
 CGFloat DegreesToRadians(CGFloat degrees)
 {
@@ -36,17 +25,18 @@ CGFloat DegreesToRadians(CGFloat degrees)
 
 @implementation Spread
 
-+ (void)initialize
+- (id)initWithSize:(CGSize)size
 {
-	srandomdev();
+	return [self initWithSize:size seed:(((uint64_t)arc4random() << 32) | arc4random())];
 }
 
-- (id)initWithSize:(CGSize)size
+- (id)initWithSize:(CGSize)size seed:(uint64_t)seed
 {
 	if (self = [super init])
 	{
 		boundsSize = size;
 		newBranchFrames = 60;
+		randomState = seed ?: 0x9E3779B97F4A7C15ULL;
 		colorSpace = CGColorSpaceCreateDeviceRGB();
 		branches = [[NSMutableArray alloc] init];
 	}
@@ -56,14 +46,35 @@ CGFloat DegreesToRadians(CGFloat degrees)
 
 - (void)dealloc
 {
-	[branches release];
+	if (layer) CGLayerRelease(layer);
 	CGColorSpaceRelease(colorSpace);
-	[super dealloc];
+}
+
+- (uint32_t)nextRandom
+{
+	// Per-instance xorshift generator prevents multiple monitor instances from
+	// changing each other's animation while allowing deterministic thumbnails.
+	uint64_t value = randomState;
+	value ^= value >> 12;
+	value ^= value << 25;
+	value ^= value >> 27;
+	randomState = value;
+	return (uint32_t)((value * 2685821657736338717ULL) >> 32);
+}
+
+- (CGFloat)randomFloat
+{
+	return [self nextRandom] / (CGFloat)UINT32_MAX;
+}
+
+- (NSUInteger)randomUIntegerFrom:(NSUInteger)min to:(NSUInteger)max
+{
+	return min + ([self nextRandom] % ((max - min) + 1));
 }
 
 - (void)createTree:(NSPoint)location
 {
-	NSUInteger numberOfBranches = RandomUInteger(3, 6);
+	NSUInteger numberOfBranches = [self randomUIntegerFrom:3 to:6];
 	CGFloat angle = 0.0;
 	CGFloat angleIncr = 360.0 / numberOfBranches;
 	for (NSUInteger i=0; i<numberOfBranches; i++)
@@ -90,15 +101,14 @@ CGFloat DegreesToRadians(CGFloat degrees)
 {
 	frameNum++;
 	
-	CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-	if ((now - lastTreeCreated) >= NEW_TREE_FREQ)
+	if (!layer) return;
+	if (frameNum == 1 || frameNum % newBranchFrames == 0)
 	{
 		CGSize size = CGLayerGetSize(layer);
 		NSPoint location;
-		location.x = (RandomFloat() + 0.1) * size.width * 0.8;
-		location.y = (RandomFloat() + 0.1) * size.height * 0.8;
+		location.x = ([self randomFloat] + 0.1) * size.width * 0.8;
+		location.y = ([self randomFloat] + 0.1) * size.height * 0.8;
 		[self createTree:location];
-		lastTreeCreated = now;
 	}
 	
 	CGContextRef ctx = CGLayerGetContext(layer);
@@ -111,7 +121,7 @@ CGFloat DegreesToRadians(CGFloat degrees)
 	comps[3] = BRANCH_OPACITY;
 	CGContextSetStrokeColor(ctx, comps);
 	
-	directionOffset += RandomFloat() * CURVINESS - CURVINESS / 2;
+	directionOffset += [self randomFloat] * CURVINESS - CURVINESS / 2;
 	directionOffset *= STRAIGHTEN_FACTOR;
 	
 	for (NSInteger i = [branches count] - 1; i >= 0; i--)
@@ -133,7 +143,6 @@ CGFloat DegreesToRadians(CGFloat degrees)
 		CGContextStrokePath(ctx);
 		
 		if (branch.radius < branch.originalRadius / 2) {
-			[[branch retain] autorelease]; // removeObjectAtIndex: will cause branch to deallocate, so retain/autorelease
 			[branches removeObjectAtIndex:i];
 			CGFloat newRadius = branch.originalRadius / 2;
 			if (newRadius > 1) {

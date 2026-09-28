@@ -6,6 +6,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 
 @interface Spread : NSObject
@@ -17,10 +18,11 @@
 	CGFloat directionOffset;
 	NSInteger newBranchFrames;
 	CGColorSpaceRef colorSpace;
-	CFAbsoluteTime lastTreeCreated;	
+	uint64_t randomState;
 }
 
 - (id)initWithSize:(CGSize)size;
+- (id)initWithSize:(CGSize)size seed:(uint64_t)seed;
 - (void)drawInContext:(CGContextRef)ctx;
 - (void)animateOneFrame;
 

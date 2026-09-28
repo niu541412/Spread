@@ -22,15 +22,9 @@
 	return self;
 }
 
-- (void)dealloc
-{
-	[spread release];
-	[super dealloc];
-}
-
 - (void)drawRect:(NSRect)rect
 {
-	[spread drawInContext:(CGContextRef)[[NSGraphicsContext currentContext] graphicsPort]];
+	[spread drawInContext:NSGraphicsContext.currentContext.CGContext];
 }
 
 - (void)animateOneFrame

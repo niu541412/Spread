@@ -14,7 +14,7 @@
 
 + (Branch *)branchWithLocation:(NSPoint)location direction:(CGFloat)direction radius:(CGFloat)radius
 {
-	Branch *branch = [[[Branch alloc] init] autorelease];
+	Branch *branch = [[Branch alloc] init];
 	branch.location = location;
 	branch.direction = direction;
 	branch.radius = radius;
